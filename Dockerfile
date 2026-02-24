@@ -11,6 +11,8 @@ ARG HOME=/root
 
 # 0. Install general tools
 ARG DEBIAN_FRONTEND=noninteractive
+RUN sed -i 's/archive.ubuntu.com/mirrors.aliyun.com/g' /etc/apt/sources.list
+RUN sed -i 's/security.ubuntu.com/mirrors.aliyun.com/g' /etc/apt/sources.list
 RUN apt-get update && \
     apt-get install -y \
         curl \
@@ -26,7 +28,7 @@ RUN apt-get update && \
 
 # 1.1. Download source
 WORKDIR ${HOME}
-RUN wget https://download.qemu.org/qemu-${QEMU_VERSION}.tar.xz && \
+RUN wget -c https://mirrors.aliyun.com/blfs/conglomeration/qemu/qemu-${QEMU_VERSION}.tar.xz  && \
     tar xvJf qemu-${QEMU_VERSION}.tar.xz
 
 # 1.2. Install dependencies
@@ -60,7 +62,9 @@ RUN qemu-system-riscv64 --version && \
 ENV RUSTUP_HOME=/usr/local/rustup \
     CARGO_HOME=/usr/local/cargo \
     PATH=/usr/local/cargo/bin:$PATH \
-    RUST_VERSION=nightly
+    RUST_VERSION=nightly \
+    RUSTUP_DIST_SERVER=https://rsproxy.cn \
+    RUSTUP_UPDATE_ROOT=https://rsproxy.cn/rustup
 RUN set -eux; \
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o rustup-init; \
     chmod +x rustup-init; \
@@ -76,6 +80,20 @@ RUN rustup --version && \
 # 3. Build env for labs
 # See os1/Makefile `env:` for example.
 # This avoids having to wait for these steps each time using a new container.
+ENV CARGO_HTTP_MULTIPLEXING=false \
+    CARGO_NET_RETRY=15 \
+    CARGO_HTTP_TIMEOUT=600
+RUN mkdir -vp ${CARGO_HOME:-$HOME/.cargo} && \
+    cat << EOF | tee -a ${CARGO_HOME:-$HOME/.cargo}/config.toml
+[source.crates-io]
+replace-with = 'mirror'
+
+[source.mirror]
+registry = "sparse+https://mirrors.tuna.tsinghua.edu.cn/crates.io-index/"
+
+[registries.mirror]
+index = "sparse+https://mirrors.tuna.tsinghua.edu.cn/crates.io-index/"
+EOF
 RUN rustup target add riscv64gc-unknown-none-elf && \
     cargo install cargo-binutils --vers ~0.2 && \
     rustup component add rust-src && \
