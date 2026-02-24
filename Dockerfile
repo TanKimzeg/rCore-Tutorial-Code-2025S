@@ -62,11 +62,11 @@ RUN qemu-system-riscv64 --version && \
 ENV RUSTUP_HOME=/usr/local/rustup \
     CARGO_HOME=/usr/local/cargo \
     PATH=/usr/local/cargo/bin:$PATH \
-    RUST_VERSION=nightly \
+    RUST_VERSION=nightly-2025-10-02 \
     RUSTUP_DIST_SERVER=https://rsproxy.cn \
     RUSTUP_UPDATE_ROOT=https://rsproxy.cn/rustup
 RUN set -eux; \
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs -o rustup-init; \
+    curl --proto '=https' --tlsv1.2 -sSf https://rsproxy.cn/rustup-init.sh -o rustup-init; \
     chmod +x rustup-init; \
     ./rustup-init -y --no-modify-path --profile minimal --default-toolchain $RUST_VERSION; \
     rm rustup-init; \
@@ -81,18 +81,20 @@ RUN rustup --version && \
 # See os1/Makefile `env:` for example.
 # This avoids having to wait for these steps each time using a new container.
 ENV CARGO_HTTP_MULTIPLEXING=false \
-    CARGO_NET_RETRY=15 \
-    CARGO_HTTP_TIMEOUT=600
+    CARGO_NET_RETRY=10 \
+    CARGO_HTTP_TIMEOUT=300
 RUN mkdir -vp ${CARGO_HOME:-$HOME/.cargo} && \
     cat << EOF | tee -a ${CARGO_HOME:-$HOME/.cargo}/config.toml
 [source.crates-io]
-replace-with = 'mirror'
-
-[source.mirror]
-registry = "sparse+https://mirrors.tuna.tsinghua.edu.cn/crates.io-index/"
-
-[registries.mirror]
-index = "sparse+https://mirrors.tuna.tsinghua.edu.cn/crates.io-index/"
+replace-with = 'rsproxy-sparse'
+[source.rsproxy]
+registry = "https://rsproxy.cn/crates.io-index"
+[source.rsproxy-sparse]
+registry = "sparse+https://rsproxy.cn/index/"
+[registries.rsproxy]
+index = "https://rsproxy.cn/crates.io-index"
+[net]
+git-fetch-with-cli = true
 EOF
 RUN rustup target add riscv64gc-unknown-none-elf && \
     cargo install cargo-binutils --vers ~0.2 && \
